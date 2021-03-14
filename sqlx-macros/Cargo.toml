@@ -92,3 +92,5 @@ sha2 = { version = "0.9.8", optional = true }
 syn = { version = "1.0.84", default-features = false, features = ["full"] }
 quote = { version = "1.0.14", default-features = false }
 url = { version = "2.2.2", default-features = false }
+lazy_static = "1.4.0"
+cached = "0.30.0"

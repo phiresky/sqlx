@@ -13,11 +13,15 @@ use sqlx_core::connection::Connection;
 use sqlx_core::database::Database;
 use sqlx_core::{column::Column, describe::Describe, type_info::TypeInfo};
 use sqlx_rt::block_on;
+use sqlx_core::sqlite::SqliteConnection;
 
 use crate::database::DatabaseExt;
 use crate::query::data::QueryData;
 use crate::query::input::RecordType;
 use either::Either;
+use sqlx_core::executor::Executor;
+use std::sync::Mutex;
+use std::ops::DerefMut;
 
 mod args;
 mod data;
@@ -157,6 +161,22 @@ pub fn expand_input(input: QueryMacroInput) -> crate::Result<TokenStream> {
     }
 }
 
+async fn connect_to_custom_(db_url: &str) -> crate::Result<SqliteConnection> {
+    let mut dir = db_url.trim_start_matches("custom-sqlite://");
+    let main_db = format!("sqlite://{}/{}", dir, "lock.sqlite3");
+    let mut conn = sqlx_core::sqlite::SqliteConnection::connect(&main_db).await?;
+    for attachdb in &["raw_events", "extracted", "config"] {
+        sqlx_core::query::query(&format!("ATTACH DATABASE '{}/{}.sqlite3' as {}", dir, attachdb, attachdb)).execute(&mut conn).await?;
+    }
+    Ok(conn)
+}
+
+#[cached::proc_macro::cached]
+async fn connect_to_custom(db_url: String) -> std::sync::Arc<Mutex<SqliteConnection>> {
+    println!("GOTOOO");
+    std::sync::Arc::new(Mutex::new(connect_to_custom_(&db_url).await.expect("could not conneccc")))
+}
+
 #[allow(unused_variables)]
 fn expand_from_db(input: QueryMacroInput, db_url: &str) -> crate::Result<TokenStream> {
     // FIXME: Introduce [sqlx::any::AnyConnection] and [sqlx::any::AnyDatabase] to support
@@ -209,7 +229,20 @@ fn expand_from_db(input: QueryMacroInput, db_url: &str) -> crate::Result<TokenSt
                 let mut conn = sqlx_core::sqlite::SqliteConnection::connect(db_url.as_str()).await?;
                 QueryData::from_db(&mut conn, &input.sql).await
             })?;
+            expand_with_data(input, data, false)
+        },
 
+        #[cfg(feature = "sqlite")]
+        "custom-sqlite" => {
+           /*lazy_static! {
+                static ref db_conn: SqliteConnection
+            }*/
+            let data = block_on(async {
+                let mut conn = connect_to_custom(db_url.as_str().to_string()).await;
+                let mut conn = conn.lock().unwrap();
+                QueryData::from_db(conn.deref_mut(), &input.sql).await
+                
+            })?;
             expand_with_data(input, data, false)
         },
 
