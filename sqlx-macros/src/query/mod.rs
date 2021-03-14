@@ -18,6 +18,7 @@ use crate::database::DatabaseExt;
 use crate::query::data::QueryData;
 use crate::query::input::RecordType;
 use either::Either;
+use sqlx_core::executor::Executor;
 
 mod args;
 mod data;
@@ -154,8 +155,22 @@ fn expand_from_db(input: QueryMacroInput, db_url: &str) -> crate::Result<TokenSt
                 let mut conn = sqlx_core::sqlite::SqliteConnection::connect(db_url.as_str()).await?;
                 QueryData::from_db(&mut conn, &input.src).await
             })?;
-
             expand_with_data(input, data, false)
+        },
+
+        #[cfg(feature = "sqlite")]
+        "custom-sqlite" => {
+            let data = block_on(async {
+                let mut dir = db_url.as_str().trim_start_matches("custom-sqlite://");
+                let main_db = format!("sqlite://{}/{}", dir, "lock.sqlite3");
+                let mut conn = sqlx_core::sqlite::SqliteConnection::connect(&main_db).await?;
+                for attachdb in &["raw_events", "extracted", "config"] {
+                    sqlx_core::query::query(&format!("ATTACH DATABASE '{}/{}.sqlite3' as {}", dir, attachdb, attachdb)).execute(&mut conn).await?;
+                }
+                QueryData::from_db(&mut conn, &input.src).await
+            })?;
+            panic!("o")
+            //expand_with_data(input, data, false)
         },
 
         #[cfg(not(feature = "sqlite"))]
