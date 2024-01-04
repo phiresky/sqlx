@@ -96,6 +96,9 @@ impl SqliteConnectOptions {
                             ));
                         }
                     },
+                    "exec" => {
+                        options.exec_on_connect.push(value.into_owned());
+                    }
 
                     "vfs" => options.vfs = Some(Cow::Owned(value.into_owned())),
 

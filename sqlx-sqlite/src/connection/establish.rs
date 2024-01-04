@@ -45,6 +45,7 @@ pub struct EstablishParams {
     statement_cache_capacity: usize,
     log_settings: LogSettings,
     extensions: IndexMap<CString, Option<CString>>,
+    exec_on_connect: Vec<String>,
     pub(crate) thread_name: String,
     pub(crate) command_channel_size: usize,
     #[cfg(feature = "regexp")]
@@ -156,6 +157,7 @@ impl EstablishParams {
             extensions,
             thread_name: (options.thread_name)(thread_id as u64),
             command_channel_size: options.command_channel_size,
+            exec_on_connect: options.exec_on_connect.clone(),
             #[cfg(feature = "regexp")]
             register_regexp_function: options.register_regexp_function,
         })
@@ -284,6 +286,10 @@ impl EstablishParams {
 
         if status != SQLITE_OK {
             return Err(Error::Database(Box::new(SqliteError::new(handle.as_ptr()))));
+        }
+        let mut handle = handle;
+        for entry in &self.exec_on_connect {
+            handle.exec(entry)?;
         }
 
         Ok(ConnectionState {

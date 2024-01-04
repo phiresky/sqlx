@@ -82,6 +82,8 @@ pub struct SqliteConnectOptions {
 
     pub(crate) optimize_on_close: OptimizeOnClose,
 
+    pub(crate) exec_on_connect: Vec<String>,
+
     #[cfg(feature = "regexp")]
     pub(crate) register_regexp_function: bool,
 }
@@ -200,6 +202,7 @@ impl SqliteConnectOptions {
             command_channel_size: 50,
             row_channel_size: 50,
             optimize_on_close: OptimizeOnClose::Disabled,
+            exec_on_connect: vec![],
             #[cfg(feature = "regexp")]
             register_regexp_function: false,
         }
